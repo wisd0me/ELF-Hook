@@ -385,9 +385,10 @@ void *elf_hook(char const *module_filename, void const *module_address, char con
     int descriptor;  //file descriptor of shared module
 
     Elf_Shdr
-    *dynsym = NULL,  // ".dynsym" section header
+    *dynsym = NULL,   // ".dynsym" section header
     *rel_plt = NULL,  // ".rel.plt" section header
-    *rel_dyn = NULL;  // ".rel.dyn" section header
+    *rel_dyn = NULL,  // ".rel.dyn" section header
+    *got_plt = NULL;  // ".got.plt" section header
 
     Elf_Sym
     *symbol = NULL;  //symbol table entry for symbol named "name"
@@ -435,30 +436,62 @@ void *elf_hook(char const *module_filename, void const *module_address, char con
     free(dynsym);
     free(symbol);
 
+    if (section_by_name(descriptor, ".got.plt", &got_plt) == 0 && got_plt) // check for section existence
+    {
+        free(got_plt);
+        got_plt = (void *) 1;
+    } // if there is no such section, we should call mprotect on substitution; the reason is unknown :/
+
     rel_plt_table = (Elf_Rel *)(((size_t)module_address) + rel_plt->sh_addr);  //init the ".rel.plt" array
     rel_plt_amount = rel_plt->sh_size / sizeof(Elf_Rel);  //and get its size
 
-    rel_dyn_table = (Elf_Rel *)(((size_t)module_address) + rel_dyn->sh_addr);  //init the ".rel.dyn" array
-    rel_dyn_amount = rel_dyn->sh_size / sizeof(Elf_Rel);  //and get its size
+    /*
+       i've found out that if a dso doesn't have a .got section, rel_dyn is NULL
+       the library was compiled with -nostartfiles -fPIC on x86 32bit
+    */
+    if (rel_dyn) {
+        rel_dyn_table = (Elf_Rel *)(((size_t)module_address) + rel_dyn->sh_addr);  //init the ".rel.dyn" array
+        rel_dyn_amount = rel_dyn->sh_size / sizeof(Elf_Rel);  //and get its size
+    } else {
+        rel_dyn_amount = 0;
+    }
 //release the data used
     free(rel_plt);
     free(rel_dyn);
 //and descriptor
     close(descriptor);
 //now we've got ".rel.plt" (needed for PIC) table and ".rel.dyn" (for non-PIC) table and the symbol's index
-    for (i = 0; i < rel_plt_amount; ++i)  //lookup the ".rel.plt" table
+    for (i = 0; i < rel_plt_amount; ++i) //lookup the ".rel.plt" table
+    {
         if (ELF_R_SYM(rel_plt_table[i].r_info) == name_index)  //if we found the symbol to substitute in ".rel.plt"
         {
-            original = (void *)*(size_t *)(((size_t)module_address) + rel_plt_table[i].r_offset);  //save the original function address
-            *(size_t *)(((size_t)module_address) + rel_plt_table[i].r_offset) = (size_t)substitution;  //and replace it with the substitutional
+            original = *(void **)(module_address + rel_plt_table[i].r_offset);  //save the original function address
+
+            if (!got_plt) /* if .got.plt is missing, below code helps; other way we'll catch a segfault beacause of invalid page permissions */
+            {
+                int ret = mprotect((void *)(((uintptr_t) module_address + rel_plt_table[i].r_offset + pagesize - 1) & ~(uintptr_t)(pagesize - 1)) - pagesize, pagesize, PROT_READ | PROT_WRITE);
+                if (ret != 0)
+                    return NULL;
+            }
+
+            *(void **)(module_address + rel_plt_table[i].r_offset) = (void *)substitution;  //and replace it with the substitutional
+
+            if (!got_plt)
+            {
+                int ret = mprotect((void *)(((uintptr_t) module_address + rel_plt_table[i].r_offset + pagesize - 1) & ~(uintptr_t)(pagesize - 1)) - pagesize, pagesize, PROT_READ | PROT_EXEC);
+                if (ret != 0)
+                    return NULL;
+            }
 
             break;  //the target symbol appears in ".rel.plt" only once
         }
+    }
 
     if (original)
         return original;
 //we will get here only with 32-bit non-PIC module
-    for (i = 0; i < rel_dyn_amount; ++i)  //lookup the ".rel.dyn" table
+    for (i = 0; i < rel_dyn_amount; ++i) //lookup the ".rel.dyn" table
+    {
         if (ELF_R_SYM(rel_dyn_table[i].r_info) == name_index)  //if we found the symbol to substitute in ".rel.dyn"
         {
             name_address = (size_t *)(((size_t)module_address) + rel_dyn_table[i].r_offset);  //get the relocation address (address of a relative CALL (0xE8) instruction's argument)
@@ -482,6 +515,7 @@ void *elf_hook(char const *module_filename, void const *module_address, char con
                 return NULL;
             }
         }
+    }
 
     return original;
 }
