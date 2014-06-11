@@ -1,5 +1,5 @@
 Bugfixes of this fork:
-=========================
+--------------------------
 
 1. If the dso doesn't have the .got.plt section, there was a crash because of no write permission to a memory page (according to valgrind).
 I faced this issue with libmysqlclient on ubuntu precise. The main reason for this is unknown.
@@ -9,7 +9,7 @@ The reason for this is unknown either.
 
 
 About
-=========================
+--------------------------
 
 Method of patching the import table in ELF shared libraries.
 Read more info at CodeProject (http://www.codeproject.com/KB/library/elf-redirect.aspx).
