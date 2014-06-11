@@ -2,11 +2,12 @@ Bugfixes of this fork:
 --------------------------
 
 1. If the dso doesn't have the .got.plt section, there was a crash because of no write permission to a memory page (according to valgrind).
-I faced this issue with libmysqlclient on ubuntu precise. The main reason for this is unknown.
+I faced this issue with libmysqlclient (version is 5.5.37-0ubuntu0.12.04.1, but I think every one is like this) on ubuntu precise x86_64; it's strange that i386 version is allright. The main reason for this is unknown.
 
 2. If the dso doesn't have the .got section, there was a crash. I faced this with the library that was compiled with "-nostartfiles -fPIC" on x86 32bit.
 The reason for this is unknown either.
 
+Investigations for this bugs are welcome!
 
 About
 --------------------------
