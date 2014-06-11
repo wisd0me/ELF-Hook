@@ -1,7 +1,6 @@
 
 ifndef CFLAGS
 CFLAGS := -O0 -g -std=gnu99 -pipe
-CFLAGS += 
 else
 CFLAGS := -O2 -std=gnu99 -pipe
 endif
