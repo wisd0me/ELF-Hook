@@ -469,7 +469,7 @@ void *elf_hook(char const *module_filename, void const *module_address, char con
 
             if (!got_plt) /* if .got.plt is missing, below code helps; other way we'll catch a segfault beacause of invalid page permissions */
             {
-                int ret = mprotect((void *)(((uintptr_t) module_address + rel_plt_table[i].r_offset + pagesize - 1) & ~(uintptr_t)(pagesize - 1)) - pagesize, pagesize, PROT_READ | PROT_WRITE);
+                int ret = mprotect((void *)(((uintptr_t) module_address + rel_plt_table[i].r_offset) & (((size_t)-1) ^ (pagesize - 1))), pagesize, PROT_READ | PROT_WRITE);
                 if (ret != 0)
                     return NULL;
             }
@@ -478,7 +478,7 @@ void *elf_hook(char const *module_filename, void const *module_address, char con
 
             if (!got_plt)
             {
-                int ret = mprotect((void *)(((uintptr_t) module_address + rel_plt_table[i].r_offset + pagesize - 1) & ~(uintptr_t)(pagesize - 1)) - pagesize, pagesize, PROT_READ | PROT_EXEC);
+                int ret = mprotect((void *)(((uintptr_t) module_address + rel_plt_table[i].r_offset) & (((size_t)-1) ^ (pagesize - 1))), pagesize, PROT_READ | PROT_EXEC);
                 if (ret != 0)
                     return NULL;
             }
